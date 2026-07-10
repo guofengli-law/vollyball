@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Volleyball Challenge</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(#75d8ff, #dff7ff);
+      touch-action: none;
+    }
+
+    #gameContainer {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    #topBar {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 9px 18px;
+      background: rgba(255, 255, 255, 0.88);
+      border: 3px solid #222;
+      border-radius: 18px;
+      font-size: clamp(15px, 3vw, 22px);
+      font-weight: bold;
+      z-index: 5;
+      white-space: nowrap;
+    }
+
+    #message {
+      position: absolute;
+      top: 75px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      text-align: center;
+      font-size: clamp(18px, 4vw, 32px);
+      font-weight: bold;
+      color: #17214a;
+      text-shadow: 2px 2px white;
+      pointer-events: none;
+    }
+
+    #controls {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding: 0 18px;
+      z-index: 10;
+    }
+
+    .moveControls {
+      display: flex;
+      gap: 12px;
+    }
+
+    .controlButton {
+      width: clamp(62px, 16vw, 90px);
+      height: clamp(62px, 16vw, 90px);
+      border: 4px solid #222;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.85);
+      font-size: clamp(27px, 7vw, 42px);
+      font-weight: bold;
+      box-shadow: 0 6px 0 #777;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .controlButton:active,
+    .controlButton.active {
+      transform: translateY(5px);
+      box-shadow: 0 1px 0 #777;
+      background: #ffe56c;
+    }
+
+    #jumpButton {
+      background: rgba(255, 180, 70, 0.92);
+    }
+
+    #startScreen,
+    #gameOverScreen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      background: rgba(20, 40, 80, 0.6);
+      z-index: 20;
+    }
+
+    #gameOverScreen {
+      display: none;
+    }
+
+    .menu {
+      width: min(500px, 92vw);
+      padding: 28px;
+      text-align: center;
+      background: white;
+      border: 5px solid #222;
+      border-radius: 25px;
+      box-shadow: 0 12px 0 rgba(0, 0, 0, 0.25);
+    }
+
+    .menu h1 {
+      margin: 0 0 15px;
+      font-size: clamp(32px, 8vw, 58px);
+      color: #ff6a3d;
+      text-shadow: 3px 3px #ffd94f;
+    }
+
+    .menu p {
+      font-size: clamp(16px, 4vw, 22px);
+      line-height: 1.45;
+    }
+
+    .menuButton {
+      margin-top: 12px;
+      padding: 14px 35px;
+      border: 4px solid #222;
+      border-radius: 16px;
+      background: #63d66d;
+      box-shadow: 0 6px 0 #2f8d37;
+      font-size: 24px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .menuButton:active {
+      transform: translateY(5px);
+      box-shadow: 0 1px 0 #2f8d37;
+    }
+
+    @media (min-width: 900px) {
+      #controls {
+        opacity: 0.78;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="gameContainer">
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="topBar">
+      <span>You: <span id="playerScore">0</span></span>
+      <span>First to 7</span>
+      <span>CPU: <span id="cpuScore">0</span></span>
+    </div>
+
+    <div id="message"></div>
+
+    <div id="controls">
+      <div class="moveControls">
+        <button class="controlButton" id="leftButton">◀</button>
+        <button class="controlButton" id="rightButton">▶</button>
+      </div>
+
+      <button class="controlButton" id="jumpButton">⬆</button>
+    </div>
+
+    <div id="startScreen">
+      <div class="menu">
+        <h1>Volleyball!</h1>
+        <p>
+          Move under the ball and hit it over the net.<br><br>
+          Use <b>A and D</b> or the arrow keys to move.<br>
+          Press <b>W, ↑, or Space</b> to jump.<br><br>
+          The first player to score 7 points wins!
+        </p>
+        <button class="menuButton" id="startButton">Play Game</button>
+      </div>
+    </div>
+
+    <div id="gameOverScreen">
+      <div class="menu">
+        <h1 id="winnerText">You Win!</h1>
+        <p id="finalScore"></p>
+        <button class="menuButton" id="restartButton">Play Again</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const playerScoreText = document.getElementById("playerScore");
+    const cpuScoreText = document.getElementById("cpuScore");
+    const messageText = document.getElementById("message");
+
+    const startScreen = document.getElementById("startScreen");
+    const gameOverScreen = document.getElementById("gameOverScreen");
+    const winnerText = document.getElementById("winnerText");
+    const finalScoreText = document.getElementById("finalScore");
+
+    const keys = {
+      left: false,
+      right: false
+    };
+
+    let width = 0;
+    let height = 0;
+    let groundY = 0;
+    let netX = 0;
+    let netTop = 0;
+
+    let playerScore = 0;
+    let cpuScore = 0;
+    let gameRunning = false;
+    let roundPaused = false;
+    let lastTime = 0;
+
+    const gravity = 1850;
+    const winningScore = 7;
+
+    const player = {
+      x: 0,
+      y: 0,
+      width: 54,
+      height: 82,
+      vx: 0,
+      vy: 0,
+      speed: 360,
+      jumpPower: 720,
+      onGround: false,
+      color: "#2f7cff"
+    };
+
+    const cpu = {
+      x: 0,
+      y: 0,
+      width: 54,
+      height: 82,
+      vx: 0,
+      vy: 0,
+      speed: 290,
+      jumpPower: 675,
+      onGround: false,
+      color: "#ff4c4c",
+      jumpCooldown: 0
+    };
+
+    const ball = {
+      x: 0,
+      y: 0,
+      radius: 22,
+      vx: 0,
+      vy: 0
+    };
+
+    const net = {
+      width: 13
+    };
+
+    function resizeCanvas() {
+      const scale = window.devicePixelRatio || 1;
+
+      width = window.innerWidth;
+      height = window.innerHeight;
+
+      canvas.width = width * scale;
+      canvas.height = height * scale;
+      canvas.style.width = width + "px";
+      canvas.style.height = height + "px";
+
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+
+      groundY = height - Math.max(105, height * 0.15);
+      netX = width / 2;
+      netTop = groundY - Math.min(230, height * 0.34);
+
+      player.width = Math.max(42, Math.min(60, width * 0.07));
+      player.height = player.width * 1.5;
+
+      cpu.width = player.width;
+      cpu.height = player.height;
+
+      ball.radius = Math.max(16, Math.min(24, width * 0.025));
+
+      if (!gameRunning) {
+        resetPositions("player");
+      }
+    }
+
+    function resetPositions(server) {
+      player.x = width * 0.22;
+      player.y = groundY - player.height;
+      player.vx = 0;
+      player.vy = 0;
+      player.onGround = true;
+
+      cpu.x = width * 0.74;
+      cpu.y = groundY - cpu.height;
+      cpu.vx = 0;
+      cpu.vy = 0;
+      cpu.onGround = true;
+      cpu.jumpCooldown = 0;
+
+      ball.y = Math.max(130, height * 0.25);
+
+      if (server === "player") {
+        ball.x = width * 0.28;
+        ball.vx = 155;
+      } else {
+        ball.x = width * 0.72;
+        ball.vx = -155;
+      }
+
+      ball.vy = -80;
+    }
+
+    function startGame() {
+      playerScore = 0;
+      cpuScore = 0;
+      updateScores();
+
+      gameRunning = true;
+      roundPaused = false;
+      startScreen.style.display = "none";
+      gameOverScreen.style.display = "none";
+
+      messageText.textContent = "Go!";
+      resetPositions("player");
+
+      setTimeout(() => {
+        if (gameRunning) messageText.textContent = "";
+      }, 700);
+    }
+
+    function updateScores() {
+      playerScoreText.textContent = playerScore;
+      cpuScoreText.textContent = cpuScore;
+    }
+
+    function jump(character) {
+      if (!gameRunning || roundPaused) return;
+
+      if (character.onGround) {
+        character.vy = -character.jumpPower;
+        character.onGround = false;
+      }
+    }
+
+    function updatePlayer(dt) {
+      player.vx = 0;
+
+      if (keys.left) player.vx = -player.speed;
+      if (keys.right) player.vx = player.speed;
+
+      player.x += player.vx * dt;
+      player.vy += gravity * dt;
+      player.y += player.vy * dt;
+
+      const leftBoundary = 8;
+      const rightBoundary = netX - net.width / 2 - player.width - 5;
+
+      player.x = Math.max(leftBoundary, Math.min(rightBoundary, player.x));
+
+      if (player.y + player.height >= groundY) {
+        player.y = groundY - player.height;
+        player.vy = 0;
+        player.onGround = true;
+      }
+    }
+
+    function updateCPU(dt) {
+      cpu.jumpCooldown -= dt;
+
+      let targetX = width * 0.76;
+
+      if (ball.x > netX) {
+        targetX = ball.x - cpu.width / 2;
+      }
+
+      const difference = targetX - cpu.x;
+
+      if (Math.abs(difference) > 10) {
+        cpu.vx = Math.sign(difference) * cpu.speed;
+      } else {
+        cpu.vx = 0;
+      }
+
+      cpu.x += cpu.vx * dt;
+      cpu.vy += gravity * dt;
+      cpu.y += cpu.vy * dt;
+
+      const leftBoundary = netX + net.width / 2 + 5;
+      const rightBoundary = width - cpu.width - 8;
+
+      cpu.x = Math.max(leftBoundary, Math.min(rightBoundary, cpu.x));
+
+      if (cpu.y + cpu.height >= groundY) {
+        cpu.y = groundY - cpu.height;
+        cpu.vy = 0;
+        cpu.onGround = true;
+      }
+
+      const ballClose =
+        ball.x > netX &&
+        Math.abs(ball.x - (cpu.x + cpu.width / 2)) < 105 &&
+        ball.y < cpu.y + 40 &&
+        ball.vy > -250;
+
+      if (ballClose && cpu.onGround && cpu.jumpCooldown <= 0) {
+        jump(cpu);
+        cpu.jumpCooldown = 0.75 + Math.random() * 0.4;
+      }
+    }
+
+    function updateBall(dt) {
+      ball.vy += gravity * 0.62 * dt;
+      ball.x += ball.vx * dt;
+      ball.y += ball.vy * dt;
+
+      ball.vx *= Math.pow(0.999, dt * 60);
+
+      if (ball.x - ball.radius < 0) {
+        ball.x = ball.radius;
+        ball.vx = Math.abs(ball.vx) * 0.85;
+      }
+
+      if (ball.x + ball.radius > width) {
+        ball.x = width - ball.radius;
+        ball.vx = -Math.abs(ball.vx) * 0.85;
+      }
+
+      if (ball.y - ball.radius < 0) {
+        ball.y = ball.radius;
+        ball.vy = Math.abs(ball.vy) * 0.85;
+      }
+
+      collideWithCharacter(player, 1);
+      collideWithCharacter(cpu, -1);
+      collideWithNet();
+
+      if (ball.y + ball.radius >= groundY) {
+        ball.y = groundY - ball.radius;
+
+        if (ball.x < netX) {
+          scorePoint("cpu");
+        } else {
+          scorePoint("player");
+        }
+      }
+    }
+
+    function collideWithCharacter(character, direction) {
+      const closestX = Math.max(
+        character.x,
+        Math.min(ball.x, character.x + character.width)
+      );
+
+      const closestY = Math.max(
+        character.y,
+        Math.min(ball.y, character.y + character.height)
+      );
+
+      const dx = ball.x - closestX;
+      const dy = ball.y - closestY;
+      const distanceSquared = dx * dx + dy * dy;
+
+      if (distanceSquared < ball.radius * ball.radius) {
+        let distance = Math.sqrt(distanceSquared);
+
+        if (distance === 0) distance = 0.01;
+
+        const normalX = dx / distance;
+        const normalY = dy / distance;
+
+        const overlap = ball.radius - distance;
+
+        ball.x += normalX * overlap;
+        ball.y += normalY * overlap;
+
+        const characterCenter =
+          character.x + character.width / 2;
+
+        const hitOffset =
+          (ball.x - characterCenter) / (character.width / 2);
+
+        ball.vx =
+          hitOffset * 410 +
+          character.vx * 0.5 +
+          direction * 85;
+
+        ball.vy =
+          -Math.max(
+            440,
+            Math.abs(character.vy) * 0.55 + 380
+          );
+
+        const maximumSpeed = 620;
+        ball.vx = Math.max(
+          -maximumSpeed,
+          Math.min(maximumSpeed, ball.vx)
+        );
+      }
+    }
+
+    function collideWithNet() {
+      const netLeft = netX - net.width / 2;
+      const netRight = netX + net.width / 2;
+
+      const touchingNet =
+        ball.x + ball.radius > netLeft &&
+        ball.x - ball.radius < netRight &&
+        ball.y + ball.radius > netTop &&
+        ball.y - ball.radius < groundY;
+
+      if (!touchingNet) return;
+
+      if (ball.y < netTop && ball.vy > 0) {
+        ball.y = netTop - ball.radius;
+        ball.vy = -Math.abs(ball.vy) * 0.72;
+        return;
+      }
+
+      if (ball.x < netX) {
+        ball.x = netLeft - ball.radius;
+        ball.vx = -Math.abs(ball.vx) * 0.82;
+      } else {
+        ball.x = netRight + ball.radius;
+        ball.vx = Math.abs(ball.vx) * 0.82;
+      }
+    }
+
+    function scorePoint(winner) {
+      if (roundPaused) return;
+
+      roundPaused = true;
+
+      if (winner === "player") {
+        playerScore++;
+        messageText.textContent = "You scored!";
+      } else {
+        cpuScore++;
+        messageText.textContent = "CPU scored!";
+      }
+
+      updateScores();
+
+      if (
+        playerScore >= winningScore ||
+        cpuScore >= winningScore
+      ) {
+        setTimeout(endGame, 850);
+        return;
+      }
+
+      setTimeout(() => {
+        resetPositions(winner);
+        roundPaused = false;
+        messageText.textContent = "Serve!";
+
+        setTimeout(() => {
+          if (gameRunning && !roundPaused) {
+            messageText.textContent = "";
+          }
+        }, 600);
+      }, 950);
+    }
+
+    function endGame() {
+      gameRunning = false;
+      roundPaused = true;
+
+      if (playerScore > cpuScore) {
+        winnerText.textContent = "You Win!";
+      } else {
+        winnerText.textContent = "CPU Wins!";
+      }
+
+      finalScoreText.textContent =
+        `Final score: ${playerScore} - ${cpuScore}`;
+
+      gameOverScreen.style.display = "flex";
+      messageText.textContent = "";
+    }
+
+    function drawBackground() {
+      const skyGradient = ctx.createLinearGradient(0, 0, 0, groundY);
+      skyGradient.addColorStop(0, "#70d8ff");
+      skyGradient.addColorStop(1, "#e8fbff");
+
+      ctx.fillStyle = skyGradient;
+      ctx.fillRect(0, 0, width, groundY);
+
+      drawCloud(width * 0.17, height * 0.18, 0.9);
+      drawCloud(width * 0.73, height * 0.14, 0.7);
+
+      ctx.fillStyle = "#f5d77d";
+      ctx.fillRect(0, groundY, width, height - groundY);
+
+      ctx.fillStyle = "#ecbf57";
+      ctx.fillRect(0, groundY, width, 10);
+
+      ctx.strokeStyle = "rgba(255,255,255,0.75)";
+      ctx.lineWidth = 5;
+
+      ctx.beginPath();
+      ctx.moveTo(netX, groundY);
+      ctx.lineTo(netX, height);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(0, groundY + 50);
+      ctx.lineTo(width, groundY + 50);
+      ctx.stroke();
+    }
+
+    function drawCloud(x, y, scale) {
+      ctx.fillStyle = "rgba(255,255,255,0.82)";
+      ctx.beginPath();
+      ctx.arc(x, y, 40 * scale, 0, Math.PI * 2);
+      ctx.arc(x + 42 * scale, y - 12 * scale, 50 * scale, 0, Math.PI * 2);
+      ctx.arc(x + 86 * scale, y, 38 * scale, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawNet() {
+      ctx.fillStyle = "#454545";
+      ctx.fillRect(netX - net.width / 2, netTop, net.width, groundY - netTop);
+
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2;
+
+      const netHeight = groundY - netTop;
+
+      for (let y = netTop + 10; y < groundY; y += 18) {
+        ctx.beginPath();
+        ctx.moveTo(netX - 28, y);
+        ctx.lineTo(netX + 28, y);
+        ctx.stroke();
+      }
+
+      for (let x = netX - 28; x <= netX + 28; x += 14) {
+        ctx.beginPath();
+        ctx.moveTo(x, netTop);
+        ctx.lineTo(x, groundY);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = "#f5f5f5";
+      ctx.fillRect(netX - 32, netTop - 5, 64, 10);
+    }
+
+    function drawCharacter(character, label) {
+      const centerX = character.x + character.width / 2;
+      const headRadius = character.width * 0.33;
+
+      ctx.strokeStyle = "#222";
+      ctx.lineWidth = 5;
+      ctx.lineCap = "round";
+
+      ctx.fillStyle = character.color;
+      ctx.beginPath();
+      ctx.roundRect(
+        character.x,
+        character.y + character.height * 0.33,
+        character.width,
+        character.height * 0.48,
+        15
+      );
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#ffd0a0";
+      ctx.beginPath();
+      ctx.arc(
+        centerX,
+        character.y + headRadius,
+        headRadius,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#222";
+      ctx.beginPath();
+      ctx.arc(centerX - 8, character.y + headRadius - 3, 3, 0, Math.PI * 2);
+      ctx.arc(centerX + 8, character.y + headRadius - 3, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(character.x + 8, character.y + character.height * 0.48);
+      ctx.lineTo(character.x - 10, character.y + character.height * 0.63);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(character.x + character.width - 8, character.y + character.height * 0.48);
+      ctx.lineTo(character.x + character.width + 10, character.y + character.height * 0.63);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(character.x + character.width * 0.3, character.y + character.height * 0.78);
+      ctx.lineTo(character.x + character.width * 0.24, character.y + character.height);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(character.x + character.width * 0.7, character.y + character.height * 0.78);
+      ctx.lineTo(character.x + character.width * 0.76, character.y + character.height);
+      ctx.stroke();
+
+      ctx.fillStyle = "#222";
+      ctx.font = `bold ${Math.max(13, character.width * 0.25)}px Arial`;
+      ctx.textAlign = "center";
+      ctx.fillText(label, centerX, character.y - 12);
+    }
+
+    function drawBall() {
+      ctx.save();
+      ctx.translate(ball.x, ball.y);
+
+      ctx.fillStyle = "#fff";
+      ctx.strokeStyle = "#222";
+      ctx.lineWidth = 4;
+
+      ctx.beginPath();
+      ctx.arc(0, 0, ball.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.strokeStyle = "#2774df";
+      ctx.lineWidth = 4;
+
+      ctx.beginPath();
+      ctx.arc(-ball.radius * 0.35, 0, ball.radius * 0.7, -1.2, 1.2);
+      ctx.stroke();
+
+      ctx.strokeStyle = "#ffcf32";
+      ctx.beginPath();
+      ctx.arc(ball.radius * 0.3, 0, ball.radius * 0.65, 1.9, 4.4);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, width, height);
+
+      drawBackground();
+      drawNet();
+      drawCharacter(player, "YOU");
+      drawCharacter(cpu, "CPU");
+      drawBall();
+    }
+
+    function gameLoop(timestamp) {
+      const dt = Math.min((timestamp - lastTime) / 1000, 0.025);
+      lastTime = timestamp;
+
+      if (gameRunning && !roundPaused) {
+        updatePlayer(dt);
+        updateCPU(dt);
+        updateBall(dt);
+      }
+
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    function setButtonControl(button, keyName) {
+      const press = event => {
+        event.preventDefault();
+        keys[keyName] = true;
+        button.classList.add("active");
+      };
+
+      const release = event => {
+        event.preventDefault();
+        keys[keyName] = false;
+        button.classList.remove("active");
+      };
+
+      button.addEventListener("pointerdown", press);
+      button.addEventListener("pointerup", release);
+      button.addEventListener("pointercancel", release);
+      button.addEventListener("pointerleave", release);
+    }
+
+    setButtonControl(
+      document.getElementById("leftButton"),
+      "left"
+    );
+
+    setButtonControl(
+      document.getElementById("rightButton"),
+      "right"
+    );
+
+    const jumpButton = document.getElementById("jumpButton");
+
+    jumpButton.addEventListener("pointerdown", event => {
+      event.preventDefault();
+      jump(player);
+      jumpButton.classList.add("active");
+    });
+
+    jumpButton.addEventListener("pointerup", () => {
+      jumpButton.classList.remove("active");
+    });
+
+    jumpButton.addEventListener("pointercancel", () => {
+      jumpButton.classList.remove("active");
+    });
+
+    window.addEventListener("keydown", event => {
+      const key = event.key.toLowerCase();
+
+      if (key === "a" || key === "arrowleft") {
+        keys.left = true;
+      }
+
+      if (key === "d" || key === "arrowright") {
+        keys.right = true;
+      }
+
+      if (
+        key === "w" ||
+        key === "arrowup" ||
+        event.code === "Space"
+      ) {
+        event.preventDefault();
+        jump(player);
+      }
+    });
+
+    window.addEventListener("keyup", event => {
+      const key = event.key.toLowerCase();
+
+      if (key === "a" || key === "arrowleft") {
+        keys.left = false;
+      }
+
+      if (key === "d" || key === "arrowright") {
+        keys.right = false;
+      }
+    });
+
+    document.getElementById("startButton").addEventListener("click", startGame);
+    document.getElementById("restartButton").addEventListener("click", startGame);
+
+    window.addEventListener("resize", resizeCanvas);
+
+    resizeCanvas();
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
